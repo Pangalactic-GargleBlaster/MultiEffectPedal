@@ -60,8 +60,8 @@ all: main-build
 main-build: Pedal.elf secondary-outputs
 
 # Tool invocations
-Pedal.elf Pedal.map: $(OBJS) $(USER_OBJS) C:\Users\admin\STM32CubeIDE\workspace_1.16.1\Pedal\STM32L476RGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Pedal.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\admin\STM32CubeIDE\workspace_1.16.1\Pedal\STM32L476RGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Pedal.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Pedal.elf Pedal.map: $(OBJS) $(USER_OBJS) C:\Users\admin\Desktop\844\MultiEffectPedal\STM32L476RGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Pedal.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\admin\Desktop\844\MultiEffectPedal\STM32L476RGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Pedal.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

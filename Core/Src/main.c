@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "effects.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -101,94 +102,6 @@ void sendNumberToComputer(uint16_t number){
 	sendMessageToComputer(stringBuffer);
 }
 
-// Effects
-
-// delay effects foundation
-
-struct CircularBuffer {
-	uint16_t* buffer;
-	uint16_t nextElementIndex;
-	uint16_t bufferSize;
-};
-
-void recordCurrentSampleForDelayEffects(struct CircularBuffer* buffer, uint16_t currentSample) {
-	buffer->buffer[buffer->nextElementIndex] = currentSample;
-	buffer->nextElementIndex = (buffer->nextElementIndex + 1) % buffer->bufferSize;
-}
-
-uint16_t getDelaySample(struct CircularBuffer* buffer, uint16_t delay) {
-	if (delay < 0 || delay > buffer->bufferSize) {
-		sendMessageToComputer("Error in the delay calculation\r\n");
-	}
-	return buffer->buffer[(buffer->nextElementIndex - 1u - delay) % buffer->bufferSize];
-}
-
-#define DELAY_BUFFER_LENGTH 32768
-uint16_t delayBuffer[DELAY_BUFFER_LENGTH];
-struct CircularBuffer delayCircularBuffer = {
-		delayBuffer,
-		0,
-		DELAY_BUFFER_LENGTH
-};
-uint16_t delay(uint16_t currentSample, uint16_t delayAmount) {
-	uint16_t delaySample = getDelaySample(&delayCircularBuffer, delayAmount);
-	uint16_t currentOutput = (currentSample + delaySample) / 2;
-	recordCurrentSampleForDelayEffects(&delayCircularBuffer, currentOutput);
-	return currentOutput;
-}
-
-// Octave effects
-#define OCTAVE_BUFFER_LENGTH 2048
-uint16_t octaveBuffer[OCTAVE_BUFFER_LENGTH];
-struct CircularBuffer octaveCircularBuffer = {
-	octaveBuffer,
-	0,
-	OCTAVE_BUFFER_LENGTH
-};
-#define OCTAVE_UP_SAMPLE_LENGTH (OCTAVE_BUFFER_LENGTH/2)
-#define OCTAVE_DOWN_SAMPLE_LENGTH (OCTAVE_UP_SAMPLE_LENGTH/2)
-#define CROSSFADE_LENGTH 256
-uint16_t crossfade(uint16_t input1, uint16_t input2, uint16_t time) {
-	if (time <= 0 || time >= CROSSFADE_LENGTH){
-		sendMessageToComputer("Error in the crossfade time\r\n");
-	}
-	return (input1*(CROSSFADE_LENGTH-time) + input2*time) / CROSSFADE_LENGTH;
-}
-
-uint16_t t_octave_up = 0;
-uint16_t octaveUp(uint16_t currentInput) {
-	uint16_t delayInput = getDelaySample(&octaveCircularBuffer, OCTAVE_UP_SAMPLE_LENGTH - t_octave_up);
-	if (t_octave_up > OCTAVE_UP_SAMPLE_LENGTH - CROSSFADE_LENGTH) {
-		uint16_t crossfadeInput = getDelaySample(&octaveCircularBuffer, 2*OCTAVE_UP_SAMPLE_LENGTH - t_octave_up);
-		delayInput = crossfade(delayInput, crossfadeInput, t_octave_up + CROSSFADE_LENGTH - OCTAVE_UP_SAMPLE_LENGTH);
-	}
-	t_octave_up = (t_octave_up + 1) % OCTAVE_UP_SAMPLE_LENGTH;
-	return delayInput;
-}
-
-uint16_t t_octave_down = 0;
-uint16_t octaveDown(uint16_t currentInput) {
-	uint16_t delayInput = getDelaySample(&octaveCircularBuffer, (t_octave_down/2)+CROSSFADE_LENGTH);
-	if (t_octave_down > 2*OCTAVE_DOWN_SAMPLE_LENGTH - CROSSFADE_LENGTH) {
-		uint16_t crossfadeInput = getDelaySample(&octaveCircularBuffer, (t_octave_down/2) - OCTAVE_DOWN_SAMPLE_LENGTH + CROSSFADE_LENGTH);
-		delayInput = crossfade(delayInput, crossfadeInput, t_octave_down + CROSSFADE_LENGTH - 2*OCTAVE_DOWN_SAMPLE_LENGTH);
-	}
-	t_octave_down = (t_octave_down+1)%(2*OCTAVE_DOWN_SAMPLE_LENGTH);
-	return delayInput;
-}
-
-uint16_t distortion(uint32_t input, uint16_t gain){
-	uint16_t distortedInput;
-	if (input < 2048u*gain/(gain+1u)){ // bottom saturation zone
-		distortedInput = input/gain;
-	} else if (input < 2048u*(gain+2u)/(gain+1u)) { // linear region
-		distortedInput = input*gain - 2048u*(gain-1u);
-	} else { // top saturation zone
-		distortedInput = (input+4096u*(gain-1u))/gain;
-	}
-	return (distortedInput*(gain+1u) + 2048u*(gain-1u))/(2u*gain);
-}
-
 // Process the samples
 bool octaveUpActive = 0;
 bool cleanSignalActive = 1;
@@ -202,17 +115,7 @@ uint16_t processSample(uint16_t sample) {
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
 	}
 
-	// Octave logic
-	recordCurrentSampleForDelayEffects(&octaveCircularBuffer, sample);
-	uint16_t octaveUpSample = octaveUp(sample);
-	uint16_t octaveDownSample = octaveDown(sample);
-	int numOfSignalsToMix = octaveUpActive + cleanSignalActive + octaveDownActive;
-	if (numOfSignalsToMix != 0){
-		sample = (octaveUpActive*octaveUpSample +
-				cleanSignalActive*sample +
-				octaveDownActive*octaveDownSample)
-				/numOfSignalsToMix;
-	}
+	sample = octave(sample, octaveDownActive, cleanSignalActive, octaveUpActive);
 
 	if (distortionActive) {
 		sample = distortion(sample, gain);
