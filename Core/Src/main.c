@@ -35,7 +35,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define LINE_INPUT 0
 
 /* USER CODE END PD */
 
@@ -294,12 +293,8 @@ int main(void)
 
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)inputBuffer, INPUT_BUFFER_LENGTH);
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_2);
-  if (LINE_INPUT) {
-	  writeAnalog(2048, DAC_CHANNEL_2);
-  } else {
-	  writeAnalog(256, DAC_CHANNEL_2);
-	  HAL_OPAMP_Start(&hopamp2);
-  }
+  writeAnalog(256, DAC_CHANNEL_2);
+  HAL_OPAMP_Start(&hopamp2);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outputBuffer, INPUT_BUFFER_LENGTH, DAC_ALIGN_12B_R);
   HAL_TIM_Base_Start(&htim2);
   /* USER CODE END 2 */
