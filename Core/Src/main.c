@@ -35,7 +35,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DAC_DMA_ACTIVE 1
 #define LINE_INPUT 0
 
 /* USER CODE END PD */
@@ -61,7 +60,7 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-#define INPUT_BUFFER_LENGTH (DAC_DMA_ACTIVE ? 88 : 2)
+#define INPUT_BUFFER_LENGTH 88
 uint16_t inputBuffer[INPUT_BUFFER_LENGTH];
 uint16_t outputBuffer[INPUT_BUFFER_LENGTH];
 /* USER CODE END PV */
@@ -235,20 +234,12 @@ void processHalfBuffer(uint16_t* inputBuffer, uint16_t* outputBuffer) {
 
 // Called when the input buffer is half filled
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc){
-	if (DAC_DMA_ACTIVE){
-		processHalfBuffer(inputBuffer, outputBuffer);
-	} else {
-		writeAudio(processSample(inputBuffer[0]));
-	}
+	processHalfBuffer(inputBuffer, outputBuffer);
 }
 
 // Called when the input buffer is completely filled
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
-	if (DAC_DMA_ACTIVE){
-		processHalfBuffer(inputBuffer+(INPUT_BUFFER_LENGTH/2), outputBuffer+(INPUT_BUFFER_LENGTH/2));
-	} else {
-		writeAudio(processSample(inputBuffer[1]));
-	}
+	processHalfBuffer(inputBuffer+(INPUT_BUFFER_LENGTH/2), outputBuffer+(INPUT_BUFFER_LENGTH/2));
 }
 
 uint16_t readAnalog(ADC_HandleTypeDef* hadc1){
@@ -309,11 +300,7 @@ int main(void)
 	  writeAnalog(256, DAC_CHANNEL_2);
 	  HAL_OPAMP_Start(&hopamp2);
   }
-  if (DAC_DMA_ACTIVE){
-	  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outputBuffer, INPUT_BUFFER_LENGTH, DAC_ALIGN_12B_R);
-  } else {
-	  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-  }
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outputBuffer, INPUT_BUFFER_LENGTH, DAC_ALIGN_12B_R);
   HAL_TIM_Base_Start(&htim2);
   /* USER CODE END 2 */
 
