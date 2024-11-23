@@ -87,3 +87,14 @@ unsigned short distortion(unsigned short input, unsigned short gain){
 	return 4096/(1+expf((2048u-input)/(1024u/gain)));
 }
 
+unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta) {
+	return beta*previousOutput + (1-beta)*currentInput;
+}
+
+unsigned short lastOutput = 2048;
+unsigned short envelopeFilter(unsigned short currentSample, float beta) {
+	unsigned short currentOutput = lowPassFilter(currentSample, lastOutput, beta);
+	lastOutput = currentOutput;
+	return currentOutput;
+}
+
