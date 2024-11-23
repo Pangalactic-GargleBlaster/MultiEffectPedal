@@ -84,7 +84,8 @@ unsigned short octave(unsigned short currentSample, bool octaveDownActive, bool 
 }
 
 unsigned short distortion(unsigned short input, unsigned short gain){
-	return 4096/(1+expf((2048u-input)/(1024u/gain)));
+	unsigned int distortedOutput = 4096/(1.0f+expf((2048.0f-input)/(1024u/gain)));
+	return (distortedOutput*(gain+1u) + 2048u*(gain-1u))/(2u*gain); // to counteract the distorted output being a lot louder
 }
 
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta) {
