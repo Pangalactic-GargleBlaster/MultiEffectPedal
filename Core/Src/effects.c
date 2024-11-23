@@ -6,6 +6,7 @@
  */
 
 #include "effects.h"
+#include <math.h>
 
 // delay effects foundation
 void recordCurrentSampleForDelayEffects(struct CircularBuffer* buffer, unsigned short currentSample) {
@@ -83,14 +84,6 @@ unsigned short octave(unsigned short currentSample, bool octaveDownActive, bool 
 }
 
 unsigned short distortion(unsigned short input, unsigned short gain){
-	unsigned int distortedInput;
-	if (input < 2048u*gain/(gain+1u)){ // bottom saturation zone
-		distortedInput = input/gain;
-	} else if (input < 2048u*(gain+2u)/(gain+1u)) { // linear region
-		distortedInput = input*gain - 2048u*(gain-1u);
-	} else { // top saturation zone
-		distortedInput = (input+4096u*(gain-1u))/gain;
-	}
-	return (distortedInput*(gain+1u) + 2048u*(gain-1u))/(2u*gain);
+	return 4096/(1+expf((2048u-input)/(1024u/gain)));
 }
 
