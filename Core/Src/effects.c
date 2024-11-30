@@ -6,6 +6,7 @@
  */
 
 #include "effects.h"
+#include "stm32l4xx_hal.h"
 #include <math.h>
 
 // delay effects foundation
@@ -86,6 +87,16 @@ unsigned short octave(unsigned short currentSample, bool octaveDownActive, bool 
 unsigned short distortion(unsigned short input, unsigned short gain){
 	unsigned int distortedOutput = 4096/(1.0f+expf((2048.0f-input)/(1024u/gain)));
 	return (distortedOutput*(gain+1u) + 2048u*(gain-1u))/(2u*gain); // to counteract the distorted output being a lot louder
+}
+
+
+float calculateBeta(float cutoffFrequency) {
+    if (cutoffFrequency <= 0) {
+        return 1.0;
+    }
+    float samplingRate = (float)HAL_RCC_GetSysClockFreq() / 1761;
+
+    return 1.0 / (1.0 + (2.0 * 3.14159265359 * cutoffFrequency / samplingRate));
 }
 
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta) {
