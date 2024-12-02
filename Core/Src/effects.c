@@ -95,8 +95,10 @@ float calculateBeta(float cutoffFrequency) {
         return 1.0;
     }
     float samplingRate = (float)HAL_RCC_GetSysClockFreq() / 1761;
+    float omega = 2.0f * 3.14159265359f * cutoffFrequency;
+    float dt = 1.0f / samplingRate;
 
-    return 1.0 / (1.0 + (2.0 * 3.14159265359 * cutoffFrequency / samplingRate));
+    return expf(-omega * dt);
 }
 
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta) {
