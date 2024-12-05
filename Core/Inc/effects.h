@@ -21,6 +21,6 @@ unsigned short delay(unsigned short currentSample, unsigned short delayAmount);
 unsigned short octave(unsigned short currentInput, bool octaveDownActive, bool cleanSignalActive, bool octaveUpActive);
 unsigned short distortion(unsigned short input, unsigned short gain);
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta);
-unsigned short envelopeFilter(unsigned short currentSample, float beta);
+unsigned short envelopeFilter(unsigned short currentSample);
 
 #endif /* INC_EFFECTS_H_ */

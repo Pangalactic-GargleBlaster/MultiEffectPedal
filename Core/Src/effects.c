@@ -92,10 +92,24 @@ unsigned short lowPassFilter(unsigned short currentInput, unsigned short previou
 	return beta*previousOutput + (1-beta)*currentInput;
 }
 
+float calculateCutoffFrequency(unsigned short peakValue) {
+	return (peakValue - 2048u)/2u + 40u;
+}
+
+#define ENVELOPE_FILTER_WINDOW_SIZE 4410
 unsigned short lastOutput = 2048;
-unsigned short envelopeFilter(unsigned short currentSample, float beta) {
+float beta = 0.5;
+unsigned short sampleCount = 0;
+unsigned short peakValue = 0;
+unsigned short envelopeFilter(unsigned short currentSample) {
 	unsigned short currentOutput = lowPassFilter(currentSample, lastOutput, beta);
 	lastOutput = currentOutput;
+	peakValue = currentSample > peakValue ? currentSample : peakValue;
+	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
+	if (sampleCount == 0){
+		beta = calculateBeta(calculateCutoffFrequency(peakValue));
+		peakValue = 0;
+	}
 	return currentOutput;
 }
 
