@@ -199,6 +199,9 @@ int main(void)
   HAL_OPAMP_Start(&hopamp2);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outputBuffer, INPUT_BUFFER_LENGTH, DAC_ALIGN_12B_R);
   HAL_TIM_Base_Start(&htim2);
+
+  float cutoffFrequency = 100.0;
+  unsigned short previousOutput = 2048;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -218,6 +221,14 @@ int main(void)
 	  sprintf(stringBuffer, "distortionActive: %d, octaveDownActive: %d, cleanSignalActive: %d, octaveUpActive: %d, delayActive: %d\r\ngain: %d, delay: %d samples\r\n",
 			  distortionActive, octaveDownActive, cleanSignalActive, octaveUpActive, delayActive, gain, delayAmount);
 	  sendMessageToComputer(stringBuffer);
+
+
+	  float beta = calculateBeta(cutoffFrequency);
+	  unsigned short currentSample = readAnalog(&hadc1);
+	  unsigned short filteredSample = lowPassFilter(currentSample, previousOutput, beta);
+	  previousOutput = filteredSample;
+	  writeAudio(filteredSample);
+
 	  HAL_Delay(17);
     /* USER CODE END WHILE */
 
