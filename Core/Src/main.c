@@ -222,7 +222,7 @@ int main(void)
 	  }
 	  sprintf(stringBuffer, "distortionActive: %d, octaveDownActive: %d, cleanSignalActive: %d, octaveUpActive: %d, delayActive: %d, envelopeFilterActive: %d\r\ngain: %d, delay: %d samples\r\n",
 			  distortionActive, octaveDownActive, cleanSignalActive, octaveUpActive, delayActive, envelopeFilterActive, gain, delayAmount);
-//	  sendMessageToComputer(stringBuffer);
+	  sendMessageToComputer(stringBuffer);
 
 	  HAL_Delay(17);
     /* USER CODE END WHILE */

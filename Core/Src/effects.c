@@ -10,6 +10,7 @@
 #include "stm32l4xx_hal.h"
 #include <math.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 // delay effects foundation
 void recordCurrentSampleForDelayEffects(struct CircularBuffer* buffer, unsigned short currentSample) {
@@ -44,7 +45,7 @@ struct CircularBuffer octaveCircularBuffer = {
 };
 #define OCTAVE_UP_SAMPLE_LENGTH (OCTAVE_BUFFER_LENGTH/2)
 #define OCTAVE_DOWN_SAMPLE_LENGTH (OCTAVE_UP_SAMPLE_LENGTH/2)
-#define CROSSFADE_LENGTH 256
+#define CROSSFADE_LENGTH OCTAVE_DOWN_SAMPLE_LENGTH
 unsigned short crossfade(unsigned short input1, unsigned short input2, unsigned short time) {
 	return (input1*(CROSSFADE_LENGTH-time) + input2*time) / CROSSFADE_LENGTH;
 }
@@ -91,10 +92,7 @@ unsigned short distortion(unsigned short input, unsigned short gain){
 	return (distortedOutput*(gain+1u) + 2048u*(gain-1u))/(2u*gain); // to counteract the distorted output being a lot louder
 }
 
-// filters
-#define ENVELOPE_FILTER_WINDOW_SIZE 1000
-float samplingPeriod =  0.0000220125;
-unsigned short cutoffFrequency = 40;
+// envelope filter
 
 float calculateAlpha(unsigned short cutoffFrequency, float samplingPeriod) {
     float omega = 2.0f * 3.14159265359f * cutoffFrequency;
@@ -114,10 +112,30 @@ short highPassFilter(unsigned short currentInput, unsigned short previousInput, 
 	return alpha*((short)previousOutput + currentInput - previousInput);
 }
 
-float cutoffFrequencyBeta = 0.75834471078;// = calculateBeta(2,samplingPeriod*ENVELOPE_FILTER_WINDOW_SIZE);
+#define ENVELOPE_FILTER_WINDOW_SIZE 250
+float samplingPeriod =  0.0000220125;
+unsigned short cutoffFrequency = 250;
+bool wahTriggered = false;
+bool sweepingUp= true;
+#define WAH_THRESHOLD 1000
 void updateCutoffFrequency(unsigned short peakValue) {
-	unsigned short currentCutoffFrequency = peakValue + 40;
-	cutoffFrequency = lowPassFilter(currentCutoffFrequency, cutoffFrequency, cutoffFrequencyBeta);
+	if (wahTriggered) {
+		if (sweepingUp){
+			cutoffFrequency += 40;
+			if (cutoffFrequency > 1000) {
+				sweepingUp = false;
+			}
+		} else {
+			cutoffFrequency -= 40;
+			if (cutoffFrequency <= 40) {
+				wahTriggered = false;
+				cutoffFrequency = 250;
+			}
+		}
+	} else if (peakValue > WAH_THRESHOLD) {
+		wahTriggered = true;
+		sweepingUp = true;
+	}
 }
 
 unsigned short lastLPFOutput = 2048;
@@ -138,7 +156,7 @@ unsigned short envelopeFilter(unsigned short currentSample) {
 	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
 	if (sampleCount == 0){
 		updateCutoffFrequency(peakValue);
-		sendNumberToComputer(cutoffFrequency);
+		//sendNumberToComputer(cutoffFrequency);
 		beta = calculateBeta(cutoffFrequency, samplingPeriod);
 		alpha = calculateAlpha(cutoffFrequency, samplingPeriod);
 		peakValue = 0;
