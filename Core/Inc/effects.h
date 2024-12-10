@@ -22,5 +22,7 @@ unsigned short octave(unsigned short currentInput, bool octaveDownActive, bool c
 unsigned short distortion(unsigned short input, unsigned short gain);
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta);
 unsigned short envelopeFilter(unsigned short currentSample);
+float calculateBeta(unsigned short cutoffFrequency, float samplingPeriod);
+
 
 #endif /* INC_EFFECTS_H_ */

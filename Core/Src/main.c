@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "effects.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -26,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "effects.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -87,10 +87,6 @@ void writeAnalog(uint16_t value, int channel){
 	HAL_DAC_SetValue(&hdac1, channel, DAC_ALIGN_12B_R, value);
 }
 
-void writeAudio(uint16_t value){
-	writeAnalog(value, DAC_CHANNEL_1);
-}
-
 char stringBuffer[1024];
 void sendMessageToComputer(char* message){
 	HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), HAL_MAX_DELAY);
@@ -102,11 +98,12 @@ void sendNumberToComputer(uint16_t number){
 }
 
 // Process the samples
-bool octaveUpActive = 0;
-bool cleanSignalActive = 1;
-bool octaveDownActive = 0;
-bool delayActive = 0;
-bool distortionActive = 0;
+bool octaveUpActive = false;
+bool cleanSignalActive = false;
+bool octaveDownActive = false;
+bool delayActive = false;
+bool distortionActive = false;
+bool envelopeFilterActive = false;
 uint16_t gain = 8;
 uint16_t delayAmount = 4400;
 uint16_t processSample(uint16_t sample) {
@@ -122,6 +119,10 @@ uint16_t processSample(uint16_t sample) {
 
 	if (delayActive) {
 		sample = delay(sample, delayAmount);
+	}
+
+	if(envelopeFilterActive) {
+		sample = envelopeFilter(sample);
 	}
 
 	return sample;
@@ -193,41 +194,35 @@ int main(void)
   MX_ADC3_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)inputBuffer, INPUT_BUFFER_LENGTH);
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_2);
   writeAnalog(256, DAC_CHANNEL_2);
   HAL_OPAMP_Start(&hopamp2);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)inputBuffer, INPUT_BUFFER_LENGTH);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outputBuffer, INPUT_BUFFER_LENGTH, DAC_ALIGN_12B_R);
   HAL_TIM_Base_Start(&htim2);
 
-  float cutoffFrequency = 100.0;
-  unsigned short previousOutput = 2048;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  float delayLPFBeta = calculateBeta(1, 0.017f);
   while (1){
 	  distortionActive = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10);
 	  octaveDownActive = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
 	  cleanSignalActive = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
 	  octaveUpActive = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_10);
 	  delayActive = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8);
+	  envelopeFilterActive = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9);
 	  if (distortionActive) {
 		  gain = readAnalog(&hadc2)*15u/4096u + 1u;
 	  }
 	  if (delayActive) {
-		  delayAmount = readAnalog(&hadc3)*DELAY_BUFFER_LENGTH/4096;
+		  uint16_t currentDelayAmount = readAnalog(&hadc3)*DELAY_BUFFER_LENGTH/4096;
+		  delayAmount = lowPassFilter(currentDelayAmount, delayAmount, delayLPFBeta);
 	  }
-	  sprintf(stringBuffer, "distortionActive: %d, octaveDownActive: %d, cleanSignalActive: %d, octaveUpActive: %d, delayActive: %d\r\ngain: %d, delay: %d samples\r\n",
-			  distortionActive, octaveDownActive, cleanSignalActive, octaveUpActive, delayActive, gain, delayAmount);
-	  sendMessageToComputer(stringBuffer);
-
-
-	  float beta = calculateBeta(cutoffFrequency);
-	  unsigned short currentSample = readAnalog(&hadc1);
-	  unsigned short filteredSample = lowPassFilter(currentSample, previousOutput, beta);
-	  previousOutput = filteredSample;
-	  writeAudio(filteredSample);
+	  sprintf(stringBuffer, "distortionActive: %d, octaveDownActive: %d, cleanSignalActive: %d, octaveUpActive: %d, delayActive: %d, envelopeFilterActive: %d\r\ngain: %d, delay: %d samples\r\n",
+			  distortionActive, octaveDownActive, cleanSignalActive, octaveUpActive, delayActive, envelopeFilterActive, gain, delayAmount);
+//	  sendMessageToComputer(stringBuffer);
 
 	  HAL_Delay(17);
     /* USER CODE END WHILE */
@@ -710,8 +705,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA8 PA10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10;
+  /*Configure GPIO pins : PA8 PA9 PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -723,27 +718,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6) {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-
-  /* USER CODE END Callback 1 */
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.
