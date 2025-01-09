@@ -98,6 +98,7 @@ void sendNumberToComputer(uint16_t number){
 }
 
 // Process the samples
+#define TEST_MODE false
 bool octaveUpActive = false;
 bool cleanSignalActive = false;
 bool octaveDownActive = false;
@@ -107,6 +108,10 @@ bool envelopeFilterActive = false;
 uint16_t gain = 8;
 uint16_t delayAmount = 4400;
 uint16_t processSample(uint16_t sample) {
+	if (TEST_MODE) {
+		sample = testNote();
+	}
+
 	if (sample > 3500) {
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
 	}

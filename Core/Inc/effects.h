@@ -23,6 +23,6 @@ unsigned short distortion(unsigned short input, unsigned short gain);
 unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta);
 unsigned short envelopeFilter(unsigned short currentSample);
 float calculateBeta(unsigned short cutoffFrequency, float samplingPeriod);
-
+unsigned short testNote();
 
 #endif /* INC_EFFECTS_H_ */

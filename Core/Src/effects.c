@@ -171,3 +171,31 @@ unsigned short envelopeFilter(unsigned short currentSample) {
 	}
 }
 
+// test note generation
+unsigned int sampleNumber = 0;
+char note = 'C';
+float wave[10] = {0, 0.5877852, 0.9510565, 0.95105651, 0.5877852, 0, -0.5877852, -0.9510565, -0.95105651, -0.58778525};
+unsigned short testNote() {
+
+	unsigned short frequency;
+	if (note == 'C') {
+		frequency = 261;
+	} else if (note == 'D') {
+		frequency = 293;
+	} else {
+		frequency = 330;
+	}
+	unsigned int period = 45000/frequency;
+	unsigned int index = (sampleNumber % period) * 10 / period;
+	sampleNumber++;
+	if (sampleNumber == 45000){
+		if (note == 'E') {
+			note = 'C';
+		} else {
+			note++;
+		}
+		sampleNumber = 0;
+	}
+
+	return 2048+(wave[index] * 1024);
+}
