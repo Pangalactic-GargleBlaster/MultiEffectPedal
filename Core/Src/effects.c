@@ -112,29 +112,30 @@ short highPassFilter(unsigned short currentInput, unsigned short previousInput, 
 	return alpha*((short)previousOutput + currentInput - previousInput);
 }
 
-#define ENVELOPE_FILTER_WINDOW_SIZE 250
-float samplingPeriod =  0.0000220125;
-unsigned short cutoffFrequency = 250;
+#define ENVELOPE_FILTER_WINDOW_SIZE 44 // 1 ms
+float samplingPeriod =  0.0000220125; // timer period / clock frequency
+unsigned short cutoffFrequency = 40;
 bool wahTriggered = false;
-bool sweepingUp= true;
-#define WAH_THRESHOLD 1000
+bool sweepingUp = true;
+#define WAH_THRESHOLD 750
 void updateCutoffFrequency(unsigned short peakValue) {
-	if (wahTriggered) {
+	if (peakValue > WAH_THRESHOLD && !(wahTriggered && sweepingUp)) { // threshold hit and it's not already sweeping up
+		wahTriggered = true;
+		sweepingUp = true;
+		cutoffFrequency = 40;
+	} else if (wahTriggered) {
 		if (sweepingUp){
-			cutoffFrequency += 40;
+			cutoffFrequency += 4;
 			if (cutoffFrequency > 1000) {
 				sweepingUp = false;
 			}
 		} else {
-			cutoffFrequency -= 40;
+			cutoffFrequency -= 4;
 			if (cutoffFrequency <= 40) {
 				wahTriggered = false;
-				cutoffFrequency = 250;
+				cutoffFrequency = 40;
 			}
 		}
-	} else if (peakValue > WAH_THRESHOLD) {
-		wahTriggered = true;
-		sweepingUp = true;
 	}
 }
 
