@@ -20,7 +20,7 @@ unsigned short getDelaySample(struct CircularBuffer* buffer, unsigned short dela
 unsigned short delay(unsigned short currentSample, unsigned short delayAmount);
 unsigned short octave(unsigned short currentInput, bool octaveDownActive, bool cleanSignalActive, bool octaveUpActive);
 unsigned short distortion(unsigned short input, unsigned short gain);
-unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta);
+float lowPassFilter(float currentInput, float previousOutput, float beta);
 unsigned short envelopeFilter(unsigned short currentSample);
 float calculateBeta(unsigned short cutoffFrequency, float samplingPeriod);
 unsigned short testNote();

@@ -36,7 +36,7 @@ unsigned short delay(unsigned short currentSample, unsigned short delayAmount) {
 }
 
 // Octave effects
-#define OCTAVE_BUFFER_LENGTH 2048
+#define OCTAVE_BUFFER_LENGTH 4096
 unsigned short octaveBuffer[OCTAVE_BUFFER_LENGTH];
 struct CircularBuffer octaveCircularBuffer = {
 	octaveBuffer,
@@ -45,7 +45,7 @@ struct CircularBuffer octaveCircularBuffer = {
 };
 #define OCTAVE_UP_SAMPLE_LENGTH (OCTAVE_BUFFER_LENGTH/2)
 #define OCTAVE_DOWN_SAMPLE_LENGTH (OCTAVE_UP_SAMPLE_LENGTH/2)
-#define CROSSFADE_LENGTH OCTAVE_DOWN_SAMPLE_LENGTH
+#define CROSSFADE_LENGTH (OCTAVE_DOWN_SAMPLE_LENGTH)
 unsigned short crossfade(unsigned short input1, unsigned short input2, unsigned short time) {
 	return (input1*(CROSSFADE_LENGTH-time) + input2*time) / CROSSFADE_LENGTH;
 }
@@ -88,8 +88,8 @@ unsigned short octave(unsigned short currentSample, bool octaveDownActive, bool 
 }
 
 unsigned short distortion(unsigned short input, unsigned short gain){
-	unsigned int distortedOutput = 4096/(1.0f+expf((2048.0f-input)/(1024u/gain)));
-	return (distortedOutput*(gain+1u) + 2048u*(gain-1u))/(2u*gain); // to counteract the distorted output being a lot louder
+	int distortedOutput = 4096/(1.0f+expf((2048.0f-input)/(1024u/gain)));
+	return (distortedOutput-2048)*(gain+1)/(4*gain) + 2048; // to counteract the distorted output being a lot louder
 }
 
 // envelope filter
@@ -104,65 +104,83 @@ float calculateBeta(unsigned short cutoffFrequency, float samplingPeriod) {
     return expf(-omega * samplingPeriod);
 }
 
-unsigned short lowPassFilter(unsigned short currentInput, unsigned short previousOutput, float beta) {
+float lowPassFilter(float currentInput, float previousOutput, float beta) {
 	return beta*previousOutput + (1-beta)*currentInput;
 }
 
-short highPassFilter(unsigned short currentInput, unsigned short previousInput, unsigned short previousOutput, float alpha) {
+float highPassFilter(float currentInput, float previousInput, float previousOutput, float alpha) {
 	return alpha*((short)previousOutput + currentInput - previousInput);
 }
 
 #define ENVELOPE_FILTER_WINDOW_SIZE 44 // 1 ms
+#define WAH_THRESHOLD 600
+#define FREQUENCY_STEP 4
+#define MIN_FREQUENCY 80
+#define MAX_FREQUENCY 1280
 float samplingPeriod =  0.0000220125; // timer period / clock frequency
-unsigned short cutoffFrequency = 40;
+unsigned short cutoffFrequency = MIN_FREQUENCY;
 bool wahTriggered = false;
 bool sweepingUp = true;
-#define WAH_THRESHOLD 750
 void updateCutoffFrequency(unsigned short peakValue) {
-	if (peakValue > WAH_THRESHOLD && !(wahTriggered && sweepingUp)) { // threshold hit and it's not already sweeping up
+	if (peakValue > WAH_THRESHOLD &&!(wahTriggered && sweepingUp)) { // threshold hit and it's not already sweeping up
 		wahTriggered = true;
-		sweepingUp = true;
-		cutoffFrequency = 40;
 	} else if (wahTriggered) {
 		if (sweepingUp){
-			cutoffFrequency += 4;
-			if (cutoffFrequency > 1000) {
+			cutoffFrequency += FREQUENCY_STEP;
+			if (cutoffFrequency > MAX_FREQUENCY) {
+				cutoffFrequency = MAX_FREQUENCY;
 				sweepingUp = false;
 			}
 		} else {
-			cutoffFrequency -= 4;
-			if (cutoffFrequency <= 40) {
+			cutoffFrequency -= FREQUENCY_STEP;
+			if (cutoffFrequency <= MIN_FREQUENCY) {
+				cutoffFrequency = MIN_FREQUENCY;
 				wahTriggered = false;
-				cutoffFrequency = 40;
+				sweepingUp = true;
 			}
 		}
 	}
 }
 
-unsigned short lastLPFOutput = 2048;
-unsigned short lastHPFOutput = 2048;
-unsigned short lastInput = 2048;
+float lastLPF1Output = 2048;
+float lastLPF2Output = 2048;
+float lastLPF3Output = 2048;
+float lastHPF1Input = 2048;
+float lastHPF2Input = 0;
+float lastHPF3Input = 0;
+float lastHPF1Output = 0;
+float lastHPF2Output = 0;
+float lastHPF3Output = 0;
 float alpha = 0.5;
 float beta = 0.5;
 unsigned short sampleCount = 0;
 unsigned short peakValue = 0;
 unsigned short envelopeFilter(unsigned short currentSample) {
-	unsigned short HPFOutput = highPassFilter(currentSample, lastInput, lastHPFOutput, alpha);
-	lastInput = currentSample;
-	lastHPFOutput = HPFOutput;
-	unsigned short LPFOutput = lowPassFilter(2048u + HPFOutput, lastLPFOutput, beta);
-	lastLPFOutput = LPFOutput;
+	float HPF1Output = highPassFilter(currentSample, lastHPF1Input, lastHPF1Output, alpha);
+	lastHPF1Input = currentSample;
+	lastHPF1Output = HPF1Output;
+	float HPF2Output = highPassFilter(HPF1Output, lastHPF2Input, lastHPF2Output, alpha);
+	lastHPF2Input = HPF1Output;
+	lastHPF2Output = HPF2Output;
+	float HPF3Output = highPassFilter(HPF2Output, lastHPF3Input, lastHPF3Output, alpha);
+	lastHPF3Input = HPF2Output;
+	lastHPF3Output = HPF3Output;
+	float LPF1Output = lowPassFilter(HPF3Output, lastLPF1Output, beta);
+	lastLPF1Output = LPF1Output;
+	float LPF2Output = lowPassFilter(LPF1Output, lastLPF2Output, beta);
+	lastLPF2Output = LPF2Output;
+	float LPF3Output = lowPassFilter(LPF2Output, lastLPF3Output, beta);
+	lastLPF3Output = LPF3Output;
 
 	peakValue = abs(currentSample - 2048) > peakValue ? abs(currentSample - 2048) : peakValue;
 	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
 	if (sampleCount == 0){
 		updateCutoffFrequency(peakValue);
-		//sendNumberToComputer(cutoffFrequency);
 		beta = calculateBeta(cutoffFrequency, samplingPeriod);
 		alpha = calculateAlpha(cutoffFrequency, samplingPeriod);
 		peakValue = 0;
 	}
-	short gainCompensatedOutput = (LPFOutput - 2048)*2 + 2048;
+	short gainCompensatedOutput = LPF3Output*8 + (currentSample - 2048)/4 + 2048;
 	if (gainCompensatedOutput < 0) {
 		return 0;
 	} else if (gainCompensatedOutput > 4095) {
