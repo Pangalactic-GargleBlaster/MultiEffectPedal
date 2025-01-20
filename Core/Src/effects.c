@@ -12,6 +12,38 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+unsigned short sampleAbsoluteVoltage(unsigned short sample) {
+	return abs(sample - 2048);
+}
+
+float samplingPeriod =  0.0000220125; // timer period / clock frequency
+#define NOISE_GATE_THRESHOLD 150
+#define NOISE_GATE_HOLD_PERIOD 4500 // 100 ms
+unsigned short timeSinceLastSound = 0;
+bool noiseGateActive = true;
+unsigned short lastNoiseGateFilterOutput = 2048;
+float noiseGateFilterBeta = 0.99448293057; // 40Hz cutoff
+unsigned short noiseGate(unsigned short currentSample) {
+	if (sampleAbsoluteVoltage(currentSample) < NOISE_GATE_THRESHOLD) {
+		if (!noiseGateActive) {
+			noiseGateActive = true;
+			lastNoiseGateFilterOutput = currentSample;
+		}
+		if (timeSinceLastSound > NOISE_GATE_HOLD_PERIOD) {
+			unsigned short output = lowPassFilter(currentSample, lastNoiseGateFilterOutput, noiseGateFilterBeta);
+			lastNoiseGateFilterOutput = output;
+			return output;
+		} else {
+			timeSinceLastSound++;
+			return currentSample;
+		}
+	} else {
+		noiseGateActive = false;
+		timeSinceLastSound = 0;
+		return currentSample;
+	}
+}
+
 // delay effects foundation
 void recordCurrentSampleForDelayEffects(struct CircularBuffer* buffer, unsigned short currentSample) {
 	buffer->buffer[buffer->nextElementIndex] = currentSample;
@@ -117,7 +149,6 @@ float highPassFilter(float currentInput, float previousInput, float previousOutp
 #define FREQUENCY_STEP 4
 #define MIN_FREQUENCY 80
 #define MAX_FREQUENCY 1280
-float samplingPeriod =  0.0000220125; // timer period / clock frequency
 unsigned short cutoffFrequency = MIN_FREQUENCY;
 bool wahTriggered = false;
 bool sweepingUp = true;
@@ -172,7 +203,8 @@ unsigned short envelopeFilter(unsigned short currentSample) {
 	float LPF3Output = lowPassFilter(LPF2Output, lastLPF3Output, beta);
 	lastLPF3Output = LPF3Output;
 
-	peakValue = abs(currentSample - 2048) > peakValue ? abs(currentSample - 2048) : peakValue;
+	unsigned short sampleVoltage = sampleAbsoluteVoltage(currentSample);
+	peakValue = sampleVoltage > peakValue ? sampleVoltage : peakValue;
 	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
 	if (sampleCount == 0){
 		updateCutoffFrequency(peakValue);
