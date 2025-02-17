@@ -32,7 +32,7 @@ unsigned short delay(unsigned short currentSample, unsigned short delayAmount) {
 	unsigned short delaySample = getDelaySample(&delayCircularBuffer, delayAmount);
 	unsigned short currentOutput = (currentSample + delaySample) / 2;
 	recordCurrentSampleForDelayEffects(&delayCircularBuffer, currentOutput);
-	return currentOutput;
+	return currentOutput * 3 / 2;
 }
 
 // Octave effects
@@ -112,21 +112,24 @@ float highPassFilter(float currentInput, float previousInput, float previousOutp
 	return alpha*((short)previousOutput + currentInput - previousInput);
 }
 
-#define ENVELOPE_FILTER_WINDOW_SIZE 44 // 1 ms
-#define WAH_THRESHOLD 600
-#define FREQUENCY_STEP 4
-#define MIN_FREQUENCY 80
-#define MAX_FREQUENCY 1280
+#define ENVELOPE_FILTER_WINDOW_SIZE 440  // 10 ms
+#define WAH_TRIGGER_THRESHOLD 600
+#define RESET_THRESHOLD 150
+#define MIN_FREQUENCY 160
+#define MAX_FREQUENCY 4000
+#define FREQUENCY_STEP (DELAY_BUFFER_LENGTH/8*ENVELOPE_FILTER_WINDOW_SIZE/delayAmount)
 float samplingPeriod =  0.0000220125; // timer period / clock frequency
 unsigned short cutoffFrequency = MIN_FREQUENCY;
 bool wahTriggered = false;
 bool sweepingUp = true;
-void updateCutoffFrequency(unsigned short peakValue) {
-	if (peakValue > WAH_THRESHOLD &&!(wahTriggered && sweepingUp)) { // threshold hit and it's not already sweeping up
+bool resetHit = true; // after sweeping, did peakValue go below threshold? needed to determine if it's the same note.
+void updateCutoffFrequency(unsigned short peakValue, unsigned short delayAmount) {
+	if (peakValue > WAH_TRIGGER_THRESHOLD &&!wahTriggered && resetHit) { // threshold hit, it's not already sweeping and it's a new note
 		wahTriggered = true;
+		resetHit = false;
 	} else if (wahTriggered) {
 		if (sweepingUp){
-			cutoffFrequency += FREQUENCY_STEP;
+			cutoffFrequency += 2 * FREQUENCY_STEP;
 			if (cutoffFrequency > MAX_FREQUENCY) {
 				cutoffFrequency = MAX_FREQUENCY;
 				sweepingUp = false;
@@ -139,6 +142,9 @@ void updateCutoffFrequency(unsigned short peakValue) {
 				sweepingUp = true;
 			}
 		}
+	}
+	if (peakValue < RESET_THRESHOLD && !resetHit) {
+		resetHit = true;
 	}
 }
 
@@ -155,7 +161,7 @@ float alpha = 0.5;
 float beta = 0.5;
 unsigned short sampleCount = 0;
 unsigned short peakValue = 0;
-unsigned short envelopeFilter(unsigned short currentSample) {
+unsigned short envelopeFilter(unsigned short currentSample, unsigned short delayAmount) {
 	float HPF1Output = highPassFilter(currentSample, lastHPF1Input, lastHPF1Output, alpha);
 	lastHPF1Input = currentSample;
 	lastHPF1Output = HPF1Output;
@@ -175,12 +181,12 @@ unsigned short envelopeFilter(unsigned short currentSample) {
 	peakValue = abs(currentSample - 2048) > peakValue ? abs(currentSample - 2048) : peakValue;
 	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
 	if (sampleCount == 0){
-		updateCutoffFrequency(peakValue);
+		updateCutoffFrequency(peakValue, delayAmount);
 		beta = calculateBeta(cutoffFrequency, samplingPeriod);
 		alpha = calculateAlpha(cutoffFrequency, samplingPeriod);
 		peakValue = 0;
 	}
-	short gainCompensatedOutput = LPF3Output*8 + (currentSample - 2048)/4 + 2048;
+	short gainCompensatedOutput = LPF3Output*24 + (currentSample - 2048)*2/3 + 2048;
 	if (gainCompensatedOutput < 0) {
 		return 0;
 	} else if (gainCompensatedOutput > 4095) {

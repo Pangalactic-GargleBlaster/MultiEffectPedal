@@ -21,7 +21,7 @@ unsigned short delay(unsigned short currentSample, unsigned short delayAmount);
 unsigned short octave(unsigned short currentInput, bool octaveDownActive, bool cleanSignalActive, bool octaveUpActive);
 unsigned short distortion(unsigned short input, unsigned short gain);
 float lowPassFilter(float currentInput, float previousOutput, float beta);
-unsigned short envelopeFilter(unsigned short currentSample);
+unsigned short envelopeFilter(unsigned short currentSample, unsigned short delayAmount);
 float calculateBeta(unsigned short cutoffFrequency, float samplingPeriod);
 unsigned short testNote();
 

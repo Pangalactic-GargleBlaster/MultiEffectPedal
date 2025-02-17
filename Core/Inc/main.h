@@ -54,6 +54,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void sendNumberToComputer(uint16_t number);
+void sendMessageToComputer(char* message);
 
 /* USER CODE END EFP */
 

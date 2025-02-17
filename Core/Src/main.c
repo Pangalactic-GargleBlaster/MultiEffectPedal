@@ -118,16 +118,16 @@ uint16_t processSample(uint16_t sample) {
 
 	sample = octave(sample, octaveDownActive, cleanSignalActive, octaveUpActive);
 
-	if (distortionActive) {
-		sample = distortion(sample, gain);
-	}
-
 	if (delayActive) {
 		sample = delay(sample, delayAmount);
 	}
 
 	if(envelopeFilterActive) {
-		sample = envelopeFilter(sample);
+		sample = envelopeFilter(sample, delayAmount);
+	}
+
+	if (distortionActive) {
+		sample = distortion(sample, gain);
 	}
 
 	return sample;
@@ -221,13 +221,13 @@ int main(void)
 	  if (distortionActive) {
 		  gain = readAnalog(&hadc2)*15u/4096u + 1u;
 	  }
-	  if (delayActive) {
+	  if (delayActive || envelopeFilterActive) {
 		  uint16_t currentDelayAmount = readAnalog(&hadc3)*DELAY_BUFFER_LENGTH/4096;
 		  delayAmount = lowPassFilter(currentDelayAmount, delayAmount, delayLPFBeta);
 	  }
 	  sprintf(stringBuffer, "distortionActive: %d, octaveDownActive: %d, cleanSignalActive: %d, octaveUpActive: %d, delayActive: %d, envelopeFilterActive: %d\r\ngain: %d, delay: %d samples\r\n",
 			  distortionActive, octaveDownActive, cleanSignalActive, octaveUpActive, delayActive, envelopeFilterActive, gain, delayAmount);
-	  sendMessageToComputer(stringBuffer);
+	  // sendMessageToComputer(stringBuffer);
 
 	  HAL_Delay(17);
     /* USER CODE END WHILE */
