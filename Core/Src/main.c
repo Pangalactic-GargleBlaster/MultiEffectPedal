@@ -112,9 +112,7 @@ uint16_t processSample(uint16_t sample) {
 		sample = testNote();
 	}
 
-	if (sample > 3500) {
-		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
-	}
+	sample = noiseGate(sample);
 
 	sample = octave(sample, octaveDownActive, cleanSignalActive, octaveUpActive);
 

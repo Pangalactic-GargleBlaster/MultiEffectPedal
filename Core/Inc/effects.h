@@ -16,6 +16,7 @@ struct CircularBuffer {
 };
 #define DELAY_BUFFER_LENGTH 32768
 
+unsigned short noiseGate(unsigned short currentSample);
 unsigned short getDelaySample(struct CircularBuffer* buffer, unsigned short delay);
 unsigned short delay(unsigned short currentSample, unsigned short delayAmount);
 unsigned short octave(unsigned short currentInput, bool octaveDownActive, bool cleanSignalActive, bool octaveUpActive);
