@@ -16,7 +16,16 @@ unsigned short sampleAbsoluteVoltage(unsigned short sample) {
 	return abs(sample - 2048);
 }
 
-float samplingPeriod =  0.0000220125; // timer period / clock frequency
+unsigned short saturate (short value) {
+	if (value < 0) {
+		return 0;
+	} else if (value > 4095) {
+		return 4095;
+	} else {
+		return value;
+	}
+}
+
 #define NOISE_GATE_THRESHOLD 150
 #define NOISE_GATE_HOLD_PERIOD 4500 // 100 ms
 unsigned short timeSinceLastSound = 0;
@@ -64,7 +73,7 @@ unsigned short delay(unsigned short currentSample, unsigned short delayAmount) {
 	unsigned short delaySample = getDelaySample(&delayCircularBuffer, delayAmount);
 	unsigned short currentOutput = (currentSample + delaySample) / 2;
 	recordCurrentSampleForDelayEffects(&delayCircularBuffer, currentOutput);
-	return currentOutput * 3 / 2;
+	return saturate(currentOutput * 3 / 2);
 }
 
 // Octave effects
@@ -156,9 +165,10 @@ bool wahTriggered = false;
 bool sweepingUp = true;
 bool resetHit = true; // after sweeping, did peakValue go below threshold? needed to determine if it's the same note.
 void updateCutoffFrequency(unsigned short peakValue, unsigned short delayAmount) {
-	if (peakValue > WAH_TRIGGER_THRESHOLD &&!wahTriggered && resetHit) { // threshold hit, it's not already sweeping and it's a new note
+	if (peakValue > WAH_TRIGGER_THRESHOLD && resetHit) { // threshold hit, and it's a new note
 		wahTriggered = true;
 		resetHit = false;
+		sweepingUp = true;
 	} else if (wahTriggered) {
 		if (sweepingUp){
 			cutoffFrequency += 2 * FREQUENCY_STEP;
@@ -171,11 +181,10 @@ void updateCutoffFrequency(unsigned short peakValue, unsigned short delayAmount)
 			if (cutoffFrequency <= MIN_FREQUENCY) {
 				cutoffFrequency = MIN_FREQUENCY;
 				wahTriggered = false;
-				sweepingUp = true;
 			}
 		}
 	}
-	if (peakValue < RESET_THRESHOLD && !resetHit) {
+	if (peakValue < RESET_THRESHOLD) {
 		resetHit = true;
 	}
 }
@@ -220,13 +229,7 @@ unsigned short envelopeFilter(unsigned short currentSample, unsigned short delay
 		peakValue = 0;
 	}
 	short gainCompensatedOutput = LPF3Output*24 + (currentSample - 2048)*2/3 + 2048;
-	if (gainCompensatedOutput < 0) {
-		return 0;
-	} else if (gainCompensatedOutput > 4095) {
-		return 4095;
-	} else {
-		return gainCompensatedOutput;
-	}
+	return saturate(gainCompensatedOutput);
 }
 
 // test note generation
