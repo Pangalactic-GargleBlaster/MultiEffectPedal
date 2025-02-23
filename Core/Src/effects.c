@@ -153,7 +153,7 @@ float highPassFilter(float currentInput, float previousInput, float previousOutp
 	return alpha*((short)previousOutput + currentInput - previousInput);
 }
 
-#define ENVELOPE_FILTER_WINDOW_SIZE 440  // 10 ms
+#define ENVELOPE_FILTER_WINDOW_SIZE 1125  // 25 ms
 #define WAH_TRIGGER_THRESHOLD 600
 #define RESET_THRESHOLD 150
 #define MIN_FREQUENCY 160
@@ -200,9 +200,8 @@ float lastHPF2Output = 0;
 float lastHPF3Output = 0;
 float alpha = 0.5;
 float beta = 0.5;
-unsigned short sampleCount = 0;
-unsigned short peakValue = 0;
-unsigned short envelopeFilter(unsigned short currentSample, unsigned short delayAmount) {
+#define BAND_PASS_MODE 1
+unsigned short tripleFilter(unsigned short currentSample) {
 	float HPF1Output = highPassFilter(currentSample, lastHPF1Input, lastHPF1Output, alpha);
 	lastHPF1Input = currentSample;
 	lastHPF1Output = HPF1Output;
@@ -212,13 +211,21 @@ unsigned short envelopeFilter(unsigned short currentSample, unsigned short delay
 	float HPF3Output = highPassFilter(HPF2Output, lastHPF3Input, lastHPF3Output, alpha);
 	lastHPF3Input = HPF2Output;
 	lastHPF3Output = HPF3Output;
-	float LPF1Output = lowPassFilter(HPF3Output, lastLPF1Output, beta);
+
+	float LPF1Input = BAND_PASS_MODE ? HPF3Output + 2048 : currentSample;
+	float LPF1Output = lowPassFilter(LPF1Input, lastLPF1Output, beta);
 	lastLPF1Output = LPF1Output;
 	float LPF2Output = lowPassFilter(LPF1Output, lastLPF2Output, beta);
 	lastLPF2Output = LPF2Output;
 	float LPF3Output = lowPassFilter(LPF2Output, lastLPF3Output, beta);
 	lastLPF3Output = LPF3Output;
+	return LPF3Output;
+}
 
+unsigned short sampleCount = 0;
+unsigned short peakValue = 0;
+unsigned short envelopeFilter(unsigned short currentSample, unsigned short delayAmount) {
+	unsigned short filterOutput = tripleFilter(currentSample);
 	unsigned short sampleVoltage = sampleAbsoluteVoltage(currentSample);
 	peakValue = sampleVoltage > peakValue ? sampleVoltage : peakValue;
 	sampleCount = (sampleCount + 1) % ENVELOPE_FILTER_WINDOW_SIZE;
@@ -228,7 +235,13 @@ unsigned short envelopeFilter(unsigned short currentSample, unsigned short delay
 		alpha = calculateAlpha(cutoffFrequency, samplingPeriod);
 		peakValue = 0;
 	}
-	short gainCompensatedOutput = LPF3Output*24 + (currentSample - 2048)*2/3 + 2048;
+	short gainCompensatedOutput;
+	if (BAND_PASS_MODE) {
+		gainCompensatedOutput = (filterOutput-2048)*24 + (currentSample - 2048)/2 + 2048;
+	} else {
+		gainCompensatedOutput = filterOutput;
+	}
+
 	return saturate(gainCompensatedOutput);
 }
 
