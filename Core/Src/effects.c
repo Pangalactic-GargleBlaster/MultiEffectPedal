@@ -26,7 +26,7 @@ unsigned short saturate (short value) {
 	}
 }
 
-#define NOISE_GATE_THRESHOLD 150
+#define NOISE_GATE_THRESHOLD 100
 #define NOISE_GATE_HOLD_PERIOD 4500 // 100 ms
 unsigned short timeSinceLastSound = 0;
 bool noiseGateActive = true;
